@@ -1,0 +1,108 @@
+"use client"; // แจ้ง Next.js ว่าไฟล์นี้ทำงานที่ฝั่ง Browser (Client Side)
+
+import type { PostWithUser, CommentWithUser } from "@/types/supabase";
+import PostCard from "./PostCard"; // Component ย่อยสำหรับแสดงการ์ดโพสต์แต่ละใบ
+
+// ====================================================================
+// ส่วนกำหนดรูปแบบข้อมูล (Interface)
+// ====================================================================
+
+export interface PostFeedProps {
+  // รายการโพสต์ทั้งหมด (กำหนด Type ให้ละเอียดเพื่อรองรับข้อมูลที่ Join มา)
+  posts?: (PostWithUser & {
+    media_urls: string[];
+    likes_count?: number;
+    comments_count?: number;
+    liked_by_user?: boolean;
+    comments?: CommentWithUser[];
+  })[];
+  
+  groupName: string;          // ชื่อกลุ่ม
+  groupAvatar?: string | null; // รูปโปรไฟล์กลุ่ม
+  userId?: string | null;     // ID ผู้ใช้ที่กำลังดูอยู่
+  
+  // ฟังก์ชัน Callbacks เมื่อเกิดเหตุการณ์ต่างๆ
+  onPostDeleted?: (postId: string) => void;
+  onPostUpdated?: (updatedPost: PostWithUser) => void;
+  
+  groupOwnerId: string;   // ID เจ้าของกลุ่ม
+  isGroupOwner: boolean;  // สถานะ: เป็นเจ้าของกลุ่มใช่ไหม
+}
+
+// ====================================================================
+// Component หลัก: PostFeed (รายการโพสต์ทั้งหมด)
+// ====================================================================
+
+export default function PostFeed({
+  posts = [], // ค่าเริ่มต้นเป็น Array ว่างกัน Error
+  groupName,
+  groupAvatar,
+  userId,
+  onPostDeleted,
+  onPostUpdated,
+  groupOwnerId,
+  isGroupOwner,
+}: PostFeedProps) {
+
+  // --- 1. กรณีไม่มีโพสต์ (Empty State) ---
+  // ตรวจสอบว่า Array โพสต์ว่างเปล่าหรือไม่
+  if (!posts.length)
+    return (
+      <div className="p-12 text-center bg-white rounded-xl shadow-md border border-gray-200">
+        {isGroupOwner ? (
+          // กรณี: เป็นเจ้าของกลุ่ม (แสดงข้อความต้อนรับและแนะนำให้โพสต์)
+          <>
+            <p className="text-xl font-semibold text-gray-900 mb-2">
+              ยินดีต้อนรับสู่ **{groupName}**! 🎉
+            </p>
+            <p className="text-gray-600">
+              กลุ่มของคุณยังไม่มีโพสต์แรก! เริ่มต้นสร้างเนื้อหาหรือกิจกรรมเพื่อดึงดูดสมาชิก
+            </p>
+          </>
+        ) : (
+          // กรณี: เป็นสมาชิกทั่วไป (แสดงข้อความต้อนรับเข้ากลุ่ม)
+          <>
+            <p className="text-xl font-semibold text-gray-500 mb-2">
+              🎉 ยินดีต้อนรับเข้าสู่กลุ่ม!
+            </p>
+            <p className="text-gray-600">
+              ติดตามกลุ่ม เพื่อเข้าดูโพสและกิจกรรมต่างๆ ที่น่าสนใจ
+            </p>
+          </>
+        )}
+      </div>
+    );
+
+  // --- 2. เตรียมข้อมูลให้ปลอดภัย (Data Sanitization) ---
+  // วนลูปตรวจสอบข้อมูลแต่ละโพสต์ เพื่อกันค่า null ที่อาจทำให้แอปพัง
+  const safePosts = posts.map((post) => {
+    // เตรียมคอมเมนต์ (ถ้าไม่มีให้เป็น Array ว่าง)
+    const commentsToShow = post.comments || [];
+
+    return {
+      ...post, // ข้อมูลเดิม
+      media_urls: post.media_urls || [], // กัน media_urls เป็น null
+      comments: commentsToShow,          // กัน comments เป็น null
+    };
+  });
+
+  // --- 3. ส่วนแสดงผล (Render List) ---
+  return (
+    // กล่องรวมโพสต์ทั้งหมด (เรียงแนวตั้ง เว้นระยะห่าง)
+    <div className="flex flex-col space-y-4">
+      {safePosts.map((post) => (
+        // เรียกใช้ Component ย่อย PostCard ทีละใบ
+        <PostCard
+          key={post.id}
+          post={post}
+          groupName={groupName}
+          groupAvatar={groupAvatar}
+          userId={userId}
+          onPostDeleted={onPostDeleted}
+          onPostUpdated={onPostUpdated}
+          groupOwnerId={groupOwnerId}
+        />
+      ))}
+    </div>
+  );
+}
